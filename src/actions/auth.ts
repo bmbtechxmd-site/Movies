@@ -17,27 +17,18 @@ import { ActionResponse } from "@/types";
 
 /**
  * A generic type for our authentication actions.
- * @template T The type of the form data.
- * @param data The validated form data.
- * @param supabase The Supabase client instance.
- * @returns An ActionResponse.
  */
-type AuthAction<T> = (data: T, supabase: SupabaseClient) => ActionResponse;
+type AuthAction<T> = (data: T, supabase: SupabaseClient) => Promise<ActionResponse>;
 
 /**
- * A higher-order function to create a server action that handles
- * form validation, captcha checks, and Supabase client creation.
- * @template T The type of the form data, which must include an optional captchaToken.
- * @param schema The Zod schema for validation.
- * @param action The core logic of the server action.
- * @returns An async function that serves as the server action.
+ * A higher-order function to create a server action
  */
 const createAuthAction = <T extends { captchaToken?: string }>(
   schema: z.ZodSchema<T>,
   action: AuthAction<T>,
   admin?: boolean,
 ) => {
-  return async (formData: T): ActionResponse => {
+  return async (formData: T): Promise<ActionResponse> => {
     const result = schema.safeParse(formData);
     if (!result.success) {
       const message = result.error.issues.map((issue) => issue.message).join(". ");
@@ -52,7 +43,6 @@ const createAuthAction = <T extends { captchaToken?: string }>(
       const supabase = await createClient(admin);
       return await action(result.data, supabase);
     } catch (error) {
-      // Catch potential unhandled errors in actions
       if (error instanceof Error) {
         return { success: false, message: error.message };
       }
@@ -125,8 +115,6 @@ const signUpAction: AuthAction<RegisterFormInput> = async (data, supabase) => {
 
   if (profileError) {
     console.error("Profile creation error:", profileError);
-    // This is a critical error. The user exists in auth but not in profiles.
-    // It's better to return a generic error and log it for investigation.
     return { success: false, message: "Could not create user profile. Please contact support." };
   }
 
@@ -171,7 +159,7 @@ export const sendResetPasswordEmail = createAuthAction(
 );
 export const resetPassword = createAuthAction(ResetPasswordFormSchema, resetPasswordAction);
 
-export const signOut = async (): ActionResponse => {
+export const signOut = async (): Promise<ActionResponse> => {
   const supabase = await createClient();
   const { error } = await supabase.auth.signOut();
 
