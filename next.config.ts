@@ -1,5 +1,4 @@
 import withPWAInit from "@ducanh2912/next-pwa";
-import { NextConfig } from "next/dist/server/config";
 
 const withPWA = withPWAInit({
   dest: "public",
@@ -13,19 +12,23 @@ const withPWA = withPWAInit({
   },
 });
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   eslint: {
     ignoreDuringBuilds: false,
   },
-  // https://github.com/payloadcms/payload/issues/12550#issuecomment-2939070941
-  turbopack: {
-    resolveExtensions: [".mdx", ".tsx", ".ts", ".jsx", ".js", ".mjs", ".json"],
-  },
   experimental: {
     optimizePackageImports: ["@heroui/react"],
+    serverComponentsExternalPackages: ['@supabase/supabase-js'],
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+    ],
   },
 };
 
-const pwa = withPWA(nextConfig);
-
-export default pwa;
+export default withPWA(nextConfig);
