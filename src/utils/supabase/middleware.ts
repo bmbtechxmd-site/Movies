@@ -1,64 +1,67 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { env } from "../env";
+import { cookies } from "next/headers"; // IMPORTANT: Add this import
 
-const PROTECTED_PATHS = env.PROTECTED_PATHS?.split(",") ?? [];
+const PROTECTED_PATHS = process.env.PROTECTED_PATHS?.split(",") ?? [];
 
-export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
 
   const supabase = createServerClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value }) => 
+            request.cookies.set(name, value)
+          );
+          response = NextResponse.next({
+            request,
+          });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
+            response.cookies.set(name, value, options)
           );
         },
       },
-    },
+    }
   );
 
+  // Refresh session if expired
+  const { data: { session } } = await supabase.auth.getSession();
+  
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
 
-  // if user is not logged in and the current pathname is protected, redirect to login page
+  // If user is not logged in and the current pathname is protected, redirect to login page
   if (!user && PROTECTED_PATHS.some((url) => pathname.startsWith(url))) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth";
-
-    const redirectRes = NextResponse.redirect(url);
-
-    supabaseResponse.cookies.getAll().forEach((cookie) => {
-      redirectRes.cookies.set(cookie.name, cookie.value, cookie);
-    });
-
-    return redirectRes;
+    return NextResponse.redirect(url);
   }
 
-  // if user is logged in and the current pathname is auth, redirect to home page
+  // If user is logged in and the current pathname is auth, redirect to home page
   if (user && pathname === "/auth") {
     const url = request.nextUrl.clone();
     url.pathname = "/";
-
-    const redirectRes = NextResponse.redirect(url);
-
-    supabaseResponse.cookies.getAll().forEach((cookie) => {
-      redirectRes.cookies.set(cookie.name, cookie.value, cookie);
-    });
-
-    return redirectRes;
+    return NextResponse.redirect(url);
   }
 
-  return supabaseResponse;
+  return response;
 }
+
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+};
